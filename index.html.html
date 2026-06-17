@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+  <title>Call Copilot</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      min-height: 100vh;
+      background: #0D1117;
+      color: #E6EDF3;
+      font-family: 'Inter', system-ui, sans-serif;
+      display: flex;
+      flex-direction: column;
+    }
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #30363D; border-radius: 4px; }
+
+    /* Header */
+    #header {
+      padding: 16px 20px;
+      border-bottom: 1px solid #21262D;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
+    }
+    #status-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: #4B5563;
+      transition: all 0.3s;
+    }
+    #status-dot.live {
+      background: #00C896;
+      box-shadow: 0 0 8px #00C896;
+      animation: pulse 1.5s infinite;
+    }
+    #status-dot.paused { background: #F59E0B; box-shadow: none; animation: none; }
+    #header-title { font-weight: 700; font-size: 15px; letter-spacing: 0.5px; }
+    #session-badge {
+      margin-left: auto;
+      font-size: 11px; font-weight: 600;
+      padding: 3px 10px; border-radius: 20px;
+      display: none;
+    }
+
+    /* Screens */
+    #briefing-screen, #live-screen {
+      flex: 1; display: flex; flex-direction: column; overflow: hidden;
+    }
+    #live-screen { display: none; }
+
+    /* Briefing */
+    #briefing-inner {
+      flex: 1; overflow-y: auto;
+      padding: 24px 20px;
+      max-width: 600px; margin: 0 auto; width: 100%;
+    }
+    .subtitle { font-size: 13px; color: #8B949E; margin-bottom: 28px; line-height: 1.6; }
+    .field { margin-bottom: 20px; }
+    .field-label {
+      font-size: 11px; font-weight: 600; color: #8B949E;
+      letter-spacing: 0.8px; text-transform: uppercase;
+      margin-bottom: 8px; display: block;
+    }
+    .session-types { display: flex; gap: 8px; flex-wrap: wrap; }
+    .type-btn {
+      padding: 8px 14px; border-radius: 20px; font-size: 13px; font-weight: 600;
+      cursor: pointer; transition: all 0.2s;
+      background: #161B22; border: 1.5px solid #30363D; color: #8B949E;
+    }
+    textarea, input {
+      width: 100%; background: #161B22; border: 1px solid #30363D;
+      border-radius: 8px; color: #E6EDF3; padding: 10px 12px;
+      font-size: 13px; line-height: 1.5; resize: vertical;
+      font-family: inherit; outline: none;
+    }
+    textarea:focus, input:focus { border-color: #00C896; }
+    #start-btn {
+      width: 100%; padding: 14px; border-radius: 10px; border: none; cursor: pointer;
+      background: linear-gradient(135deg, #00C896, #0096C8);
+      color: #0D1117; font-weight: 700; font-size: 15px;
+      letter-spacing: 0.3px; margin-top: 12px;
+      box-shadow: 0 0 20px #00C89640;
+    }
+
+    /* Live */
+    #error-bar {
+      padding: 10px 16px; background: #F8514922;
+      border-bottom: 1px solid #F8514944; color: #F85149;
+      font-size: 12px; display: none;
+    }
+    #live-inner {
+      flex: 1; display: flex; flex-direction: column;
+      overflow: hidden; padding: 16px 16px 0;
+    }
+    .section-label {
+      font-size: 10px; font-weight: 600; color: #8B949E;
+      letter-spacing: 0.8px; text-transform: uppercase;
+      margin-bottom: 8px; display: block;
+    }
+    #transcript-box {
+      height: 130px; overflow-y: auto;
+      background: #0D1117; border: 1px solid #21262D; border-radius: 8px;
+      padding: 10px 12px; font-size: 12px; line-height: 1.7;
+      margin-bottom: 16px; flex-shrink: 0;
+    }
+    #transcript-final { color: #C9D1D9; }
+    #transcript-interim { color: #4B5563; font-style: italic; }
+    #transcript-placeholder { color: #4B5563; }
+
+    #suggestions-area { flex: 1; overflow-y: auto; padding-bottom: 16px; }
+    #suggestions-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 10px;
+    }
+    #analyze-btn {
+      background: none; border: 1px solid #30363D; border-radius: 6px;
+      color: #8B949E; font-size: 11px; padding: 3px 8px; cursor: pointer;
+    }
+    #loading-indicator {
+      display: none; align-items: center; gap: 8px;
+      color: #8B949E; font-size: 12px; padding: 8px 0;
+    }
+    .spinner {
+      width: 14px; height: 14px; border: 2px solid #30363D;
+      border-top-color: #00C896; border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    #context-note {
+      font-size: 11px; color: #8B949E; margin-bottom: 10px;
+      padding: 6px 10px; background: #161B22; border-radius: 6px;
+      border-left: 2px solid #30363D; display: none;
+    }
+    .suggestions-group { margin-bottom: 14px; }
+    .group-label {
+      font-size: 10px; font-weight: 700; letter-spacing: 0.6px;
+      text-transform: uppercase; margin-bottom: 6px; display: block;
+    }
+    .group-label.answers { color: #00C896; }
+    .group-label.questions { color: #818CF8; }
+    .suggestion-card {
+      background: #161B22; border: 1px solid #21262D; border-radius: 10px;
+      padding: 12px 14px; font-size: 13px; line-height: 1.6; color: #E6EDF3;
+      margin-bottom: 8px; animation: fadeIn 0.3s ease;
+    }
+    .suggestion-card.answer { border-left: 2px solid #00C89688; }
+    .suggestion-card.question { border-left: 2px solid #818CF888; }
+    #empty-state { color: #4B5563; font-size: 12px; font-style: italic; padding: 8px 0; }
+
+    /* Controls */
+    #controls {
+      padding: 12px 16px; border-top: 1px solid #21262D;
+      display: flex; gap: 10px; flex-shrink: 0;
+    }
+    #pause-btn {
+      flex: 1; padding: 11px; border-radius: 8px; border: 1px solid #30363D;
+      background: transparent; color: #8B949E; font-weight: 600;
+      font-size: 13px; cursor: pointer; font-family: inherit;
+    }
+    #pause-btn.paused { background: #21262D; color: #F59E0B; border-color: #F59E0B44; }
+    #end-btn {
+      flex: 1; padding: 11px; border-radius: 8px;
+      border: 1px solid #F8514944; background: transparent;
+      color: #F85149; font-weight: 600; font-size: 13px;
+      cursor: pointer; font-family: inherit;
+    }
+
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+  </style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div id="header">
+  <div id="status-dot"></div>
+  <span id="header-title">Call Copilot</span>
+  <span id="session-badge"></span>
+</div>
+
+<!-- BRIEFING SCREEN -->
+<div id="briefing-screen">
+  <div id="briefing-inner">
+    <p class="subtitle">Brief your copilot before the call so it can give you contextual suggestions in real time.</p>
+
+    <div class="field">
+      <span class="field-label">Session type</span>
+      <div class="session-types" id="session-types"></div>
+    </div>
+
+    <div class="field">
+      <span class="field-label">Offer / Product context</span>
+      <textarea id="offer-context" rows="5" placeholder="Describe your offer, key differentiators, modules available..."></textarea>
+    </div>
+
+    <div class="field" style="margin-bottom:32px">
+      <span class="field-label">Client / Participant context</span>
+      <textarea id="client-context" rows="4" placeholder="e.g. AXA Germany, insurer, exploring AVD digital strategy, met at conference last month, decision-maker is Head of Digital..."></textarea>
+    </div>
+
+    <button id="start-btn">Start Session →</button>
+  </div>
+</div>
+
+<!-- LIVE SCREEN -->
+<div id="live-screen">
+  <div id="error-bar"></div>
+  <div id="live-inner">
+    <span class="section-label">Live transcript</span>
+    <div id="transcript-box">
+      <span id="transcript-final"></span>
+      <span id="transcript-interim"></span>
+      <span id="transcript-placeholder">Listening… start speaking.</span>
+      <div id="transcript-end"></div>
+    </div>
+
+    <div id="suggestions-area">
+      <div id="suggestions-header">
+        <span class="section-label" style="margin-bottom:0">Copilot suggestions</span>
+        <button id="analyze-btn">Analyze now</button>
+      </div>
+      <div id="loading-indicator">
+        <div class="spinner"></div>
+        Analyzing conversation…
+      </div>
+      <div id="context-note"></div>
+      <div id="answers-group" class="suggestions-group" style="display:none">
+        <span class="group-label answers">Suggested answers</span>
+        <div id="answers-list"></div>
+      </div>
+      <div id="questions-group" class="suggestions-group" style="display:none">
+        <span class="group-label questions">Questions to ask</span>
+        <div id="questions-list"></div>
+      </div>
+      <div id="empty-state">Suggestions will appear after a few seconds of conversation…</div>
+    </div>
+  </div>
+
+  <div id="controls">
+    <button id="pause-btn">⏸ Pause</button>
+    <button id="end-btn">End Session</button>
+  </div>
+</div>
+
+<script>
+  // ── CONFIG ──────────────────────────────────────────────────────────────
+  const SESSION_TYPES = ["Client Pitch", "Qualification Call", "Internal Meeting"];
+  const TYPE_COLORS = {
+    "Client Pitch": "#F59E0B",
+    "Qualification Call": "#00C896",
+    "Internal Meeting": "#818CF8",
+  };
+  const OFFER_PRESET = `Gambit Wealth Platform (GWP) — B2B SaaS modular wealth management solution.
+Key modules: DPM (Discretionary Portfolio Management), Advisory/APM, Portfolio Simulations, NLG automated comments.
+API-first, white-label, deployed with banks, private banks, insurers, wealth managers across Europe.
+Developed jointly by BNP Paribas Asset Management and Gambit (fintech subsidiary).
+Key differentiators: modular architecture, regulatory compliance (MiFID II, IDD), fast time-to-market.`;
+
+  // ── STATE ────────────────────────────────────────────────────────────────
+  let selectedType = "Client Pitch";
+  let recognition = null;
+  let isPaused = false;
+  let transcript = "";
+  let lastAnalyzed = "";
+  let silenceTimer = null;
+  let briefing = {};
+
+  // ── INIT BRIEFING ────────────────────────────────────────────────────────
+  document.getElementById("offer-context").value = OFFER_PRESET;
+
+  const typesContainer = document.getElementById("session-types");
+  SESSION_TYPES.forEach(t => {
+    const btn = document.createElement("button");
+    btn.className = "type-btn";
+    btn.textContent = t;
+    btn.onclick = () => selectType(t);
+    typesContainer.appendChild(btn);
+  });
+  selectType("Client Pitch");
+
+  function selectType(t) {
+    selectedType = t;
+    document.querySelectorAll(".type-btn").forEach(btn => {
+      const isSelected = btn.textContent === t;
+      const color = TYPE_COLORS[t];
+      btn.style.background = isSelected ? color + "22" : "#161B22";
+      btn.style.borderColor = isSelected ? color : "#30363D";
+      btn.style.color = isSelected ? color : "#8B949E";
+    });
+  }
+
+  document.getElementById("start-btn").onclick = startSession;
+  document.getElementById("pause-btn").onclick = togglePause;
+  document.getElementById("end-btn").onclick = endSession;
+  document.getElementById("analyze-btn").onclick = () => analyzeNow();
+
+  // ── SESSION ──────────────────────────────────────────────────────────────
+  function startSession() {
+    briefing = {
+      sessionType: selectedType,
+      offerContext: document.getElementById("offer-context").value,
+      clientContext: document.getElementById("client-context").value,
+    };
+    transcript = "";
+    lastAnalyzed = "";
+    isPaused = false;
+
+    // Show badge
+    const badge = document.getElementById("session-badge");
+    const color = TYPE_COLORS[selectedType];
+    badge.textContent = selectedType;
+    badge.style.display = "inline-block";
+    badge.style.background = color + "22";
+    badge.style.color = color;
+    badge.style.border = `1px solid ${color}44`;
+
+    // Switch screens
+    document.getElementById("briefing-screen").style.display = "none";
+    document.getElementById("live-screen").style.display = "flex";
+
+    // Reset UI
+    document.getElementById("transcript-final").textContent = "";
+    document.getElementById("transcript-interim").textContent = "";
+    document.getElementById("transcript-placeholder").style.display = "inline";
+    document.getElementById("answers-group").style.display = "none";
+    document.getElementById("questions-group").style.display = "none";
+    document.getElementById("context-note").style.display = "none";
+    document.getElementById("empty-state").style.display = "block";
+
+    setTimeout(startListening, 300);
+  }
+
+  function endSession() {
+    stopListening();
+    document.getElementById("briefing-screen").style.display = "flex";
+    document.getElementById("live-screen").style.display = "none";
+    document.getElementById("session-badge").style.display = "none";
+    document.getElementById("status-dot").className = "";
+  }
+
+  function togglePause() {
+    if (isPaused) {
+      isPaused = false;
+      try { recognition.start(); } catch(e) {}
+      document.getElementById("pause-btn").textContent = "⏸ Pause";
+      document.getElementById("pause-btn").classList.remove("paused");
+      document.getElementById("status-dot").className = "live";
+    } else {
+      isPaused = true;
+      try { recognition.stop(); } catch(e) {}
+      document.getElementById("pause-btn").textContent = "▶ Resume";
+      document.getElementById("pause-btn").classList.add("paused");
+      document.getElementById("status-dot").className = "paused";
+    }
+  }
+
+  // ── SPEECH RECOGNITION ───────────────────────────────────────────────────
+  function startListening() {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) {
+      showError("Speech recognition not supported. Please use Chrome or Safari.");
+      return;
+    }
+
+    recognition = new SR();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = "en-US";
+
+    recognition.onresult = (event) => {
+      let interim = "";
+      let finalChunk = "";
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const t = event.results[i][0].transcript;
+        if (event.results[i].isFinal) finalChunk += t + " ";
+        else interim += t;
+      }
+      if (finalChunk) {
+        transcript += finalChunk;
+        document.getElementById("transcript-final").textContent = transcript;
+        document.getElementById("transcript-placeholder").style.display = "none";
+        document.getElementById("transcript-end").scrollIntoView({ behavior: "smooth" });
+
+        // Silence detection: analyze 2.5s after last word
+        clearTimeout(silenceTimer);
+        silenceTimer = setTimeout(() => analyzeNow(), 2500);
+      }
+      document.getElementById("transcript-interim").textContent = interim ? " " + interim : "";
+    };
+
+    recognition.onerror = (e) => {
+      if (e.error !== "no-speech") showError("Microphone error: " + e.error);
+    };
+
+    recognition.onend = () => {
+      if (!isPaused) {
+        try { recognition.start(); } catch(e) {}
+      }
+    };
+
+    recognition.start();
+    document.getElementById("status-dot").className = "live";
+  }
+
+  function stopListening() {
+    clearTimeout(silenceTimer);
+    if (recognition) { try { recognition.stop(); } catch(e) {} recognition = null; }
+  }
+
+  // ── CLAUDE API ───────────────────────────────────────────────────────────
+  function buildSystemPrompt() {
+    return `You are a real-time sales and meeting copilot assistant helping Marion from BNP Paribas Asset Management during a live call.
+
+SESSION CONTEXT:
+- Session type: ${briefing.sessionType}
+- Offer/Product context: ${briefing.offerContext || "Not specified"}
+- Client/Participant context: ${briefing.clientContext || "Not specified"}
+
+Your job: analyze the recent conversation transcript and provide:
+1. UP TO 3 suggested answers/responses Marion could give right now
+2. UP TO 3 smart follow-up questions Marion should ask
+
+Rules:
+- Be concise. Each suggestion max 2 sentences.
+- Match the language of the conversation (French or English).
+- Focus on what was JUST said — don't repeat previous suggestions.
+- For a pitch: help close, handle objections, highlight value.
+- For qualification: uncover needs, budget, timeline, decision process (MEDDPICC).
+- For internal: clarify, align, move to next steps.
+- If nothing interesting happened, return empty arrays.
+
+Respond ONLY with valid JSON, no markdown, no preamble:
+{"suggestedAnswers":["...","..."],"suggestedQuestions":["...","..."],"contextNote":"optional short observation"}`;
+  }
+
+  async function analyzeNow() {
+    const text = transcript.slice(-800);
+    if (!text || text === lastAnalyzed || text.trim().length < 30) return;
+    lastAnalyzed = text;
+
+    document.getElementById("loading-indicator").style.display = "flex";
+    document.getElementById("empty-state").style.display = "none";
+
+    try {
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-6",
+          max_tokens: 1000,
+          system: buildSystemPrompt(),
+          messages: [{
+            role: "user",
+            content: `Recent transcript:\n\n"${text}"\n\nProvide suggestions now.`
+          }]
+        })
+      });
+      const data = await res.json();
+      const raw = (data.content || []).map(b => b.text || "").join("").trim();
+      const parsed = JSON.parse(raw);
+      renderSuggestions(parsed);
+    } catch(e) {
+      console.error("Analysis error:", e);
+    } finally {
+      document.getElementById("loading-indicator").style.display = "none";
+    }
+  }
+
+  function renderSuggestions(s) {
+    // Context note
+    const noteEl = document.getElementById("context-note");
+    if (s.contextNote) {
+      noteEl.textContent = "💡 " + s.contextNote;
+      noteEl.style.display = "block";
+    } else {
+      noteEl.style.display = "none";
+    }
+
+    // Answers
+    const answersGroup = document.getElementById("answers-group");
+    const answersList = document.getElementById("answers-list");
+    if (s.suggestedAnswers && s.suggestedAnswers.length > 0) {
+      answersList.innerHTML = "";
+      s.suggestedAnswers.forEach(a => {
+        const d = document.createElement("div");
+        d.className = "suggestion-card answer";
+        d.textContent = a;
+        answersList.appendChild(d);
+      });
+      answersGroup.style.display = "block";
+    } else {
+      answersGroup.style.display = "none";
+    }
+
+    // Questions
+    const questionsGroup = document.getElementById("questions-group");
+    const questionsList = document.getElementById("questions-list");
+    if (s.suggestedQuestions && s.suggestedQuestions.length > 0) {
+      questionsList.innerHTML = "";
+      s.suggestedQuestions.forEach(q => {
+        const d = document.createElement("div");
+        d.className = "suggestion-card question";
+        d.textContent = q;
+        questionsList.appendChild(d);
+      });
+      questionsGroup.style.display = "block";
+    } else {
+      questionsGroup.style.display = "none";
+    }
+
+    document.getElementById("empty-state").style.display = "none";
+  }
+
+  function showError(msg) {
+    const bar = document.getElementById("error-bar");
+    bar.textContent = "⚠ " + msg;
+    bar.style.display = "block";
+  }
+</script>
+</body>
+</html>
